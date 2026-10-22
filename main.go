@@ -202,4 +202,47 @@ func decodeRowDescription(body []byte) ([]FieldDescription, error) {
 	return fields, nil
 }
 
+func decodeDataRow(body []byte) ([]*string, error) {
+	if len(body) < 2 {
+		return nil, fmt.Errorf("missing column count")
+	}
+
+	numberOfColumns := binary.BigEndian.Uint16(body[0:2])
+	values := make([]*string, 0, numberOfColumns)
+	offset := 2
+
+	for i := 0; i < int(numberOfColumns); i++ {
+		if len(body)-offset < 4 {
+			return nil, fmt.Errorf("column %d: missing length", i)
+		}
+
+		length := int32(binary.BigEndian.Uint32(body[offset : offset+4]))
+		offset += 4
+
+		if length == -1 {
+			values = append(values, nil)
+			continue
+		}
+
+		if length < -1 {
+			return nil, fmt.Errorf("column %d: invalid length %d", i, length)
+		}
+
+		if int(length) > len(body)-offset {
+			return nil, fmt.Errorf("column %d: incomplete value", i)
+		}
+
+		value := string(body[offset : offset+int(length)])
+		values = append(values, &value)
+
+		offset += int(length)
+	}
+
+	if offset != len(body) {
+		return nil, fmt.Errorf("unexpected trailing bytes")
+	}
+
+	return values, nil
+}
+
 func main() {}
