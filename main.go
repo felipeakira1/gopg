@@ -145,4 +145,61 @@ func receiveUntilReady(conn net.Conn) error {
 	}
 }
 
+type FieldDescription struct {
+	Name         string
+	TableOID     uint32
+	ColumnNumber uint16
+	TypeOID      uint32
+	TypeSize     uint16
+	TypeModifier uint32
+	FormatCode   uint16
+}
+
+func decodeRowDescription(body []byte) ([]FieldDescription, error) {
+	// The first two bytes are required and represent the number of fields in a row.
+	if len(body) < 2 {
+		return nil, fmt.Errorf("missing field count")
+	}
+
+	numberOfFields := binary.BigEndian.Uint16(body[0:2])
+	fields := make([]FieldDescription, 0, numberOfFields)
+	offset := 2
+
+	for i := 0; i < int(numberOfFields); i++ {
+		end := bytes.IndexByte(body[offset:], 0)
+		if end == -1 {
+			return nil, fmt.Errorf("missing field name terminator")
+		}
+
+		name := string(body[offset : offset+end])
+		offset += end + 1
+
+		if len(body)-offset < 18 {
+			return nil, fmt.Errorf("incomplete field metadata")
+		}
+
+		rest := body[offset : offset+18]
+
+		field := FieldDescription{
+			Name:         name,
+			TableOID:     binary.BigEndian.Uint32(rest[0:4]),
+			ColumnNumber: binary.BigEndian.Uint16(rest[4:6]),
+			TypeOID:      binary.BigEndian.Uint32(rest[6:10]),
+			TypeSize:     binary.BigEndian.Uint16(rest[10:12]),
+			TypeModifier: binary.BigEndian.Uint32(rest[12:16]),
+			FormatCode:   binary.BigEndian.Uint16(rest[16:18]),
+		}
+
+		fields = append(fields, field)
+
+		offset += 18
+	}
+
+	if offset != len(body) {
+		return nil, fmt.Errorf("unexpected trailing bytes")
+	}
+
+	return fields, nil
+}
+
 func main() {}
