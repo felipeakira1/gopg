@@ -245,4 +245,21 @@ func decodeDataRow(body []byte) ([]*string, error) {
 	return values, nil
 }
 
+func sendQuery(conn net.Conn, sql string) error {
+	if strings.ContainsRune(sql, '\x00') {
+		return fmt.Errorf("query cannot contain null bytes")
+	}
+
+	length := 1 + 4 + len(sql) + 1
+	message := make([]byte, length)
+
+	message[0] = 'Q'
+	// The length does not include the first byte (the message type)
+	binary.BigEndian.PutUint32(message[1:5], uint32(length-1))
+	copy(message[5:], sql)
+
+	_, err := io.Copy(conn, bytes.NewReader(message))
+	return err
+}
+
 func main() {}
