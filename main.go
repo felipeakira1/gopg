@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
+	"io"
+	"net"
 	"strings"
+	"time"
 )
 
 func startupMessage(user, database string) ([]byte, error) {
@@ -38,6 +42,40 @@ func startupMessage(user, database string) ([]byte, error) {
 	copy(message[8:], params)
 
 	return message, nil
+}
+
+func connect(user, database string) (net.Conn, error) {
+	// Create the startup message
+	message, err := startupMessage(user, database)
+
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("Establishing connection to PostgreSQL at ", time.Now().Format("02/01/2006 15:04:05.000"))
+	// Establish a TCP connection to the PostgreSQL server
+	conn, err := net.DialTimeout("tcp", "127.0.0.1:15432", 5*time.Second)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set a deadline for the connection to avoid hanging indefinitely
+	// if err := conn.SetDeadline(time.Now().Add(5 * time.Second)); err != nil {
+	// 	conn.Close()
+	// 	return nil, err
+	// 	}
+
+	// bytes package provides functions for the manipulation of bytes slices
+	// bytes.NewReader creates a new Reader reading from the provided byte slice
+	// io from the io package provides basic interfaces to I/O primitives
+	// io.Copy reads from that reader and writes to conn
+	// _ discards the returned number of bytes copied
+	if _, err := io.Copy(conn, bytes.NewReader(message)); err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	return conn, nil
 }
 
 func main() {}
