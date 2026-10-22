@@ -310,4 +310,34 @@ func sendQuery(conn net.Conn, sql string) error {
 	return err
 }
 
-func main() {}
+func main() {
+	conn, err := connect("postgres", "postgres")
+	if err != nil {
+		fmt.Println("Connection failed:", err)
+		return
+	}
+	defer conn.Close()
+
+	log.Println("TCP connected; startup message sent")
+
+	if err := receiveUntilReady(conn); err != nil {
+		log.Println("Startup failed:", err)
+		return
+	}
+
+	log.Println("Received ReadyForQuery; startup successful")
+
+	// query := "CREATE TABLE test (id SERIAL PRIMARY KEY, name VARCHAR(255));"
+	// query := "DROP TABLE IF EXISTS test;"
+	query := "select * from;"
+	// query := "INSERT INTO test (name) VALUES ('Felipe');"
+	result, err := Query(conn, query)
+	if err != nil {
+		log.Println("Query failed", err)
+		return
+	}
+
+	fmt.Println("Columns:", len(result.Fields))
+	fmt.Println("Rows:", len(result.Rows))
+	fmt.Println("Command:", result.CommandTag)
+}
