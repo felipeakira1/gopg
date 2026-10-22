@@ -245,6 +245,54 @@ func decodeDataRow(body []byte) ([]*string, error) {
 	return values, nil
 }
 
+type Result struct {
+	Fields     []FieldDescription
+	Rows       [][]*string
+	CommandTag string
+}
+
+func Query(conn net.Conn, sql string) (*Result, error) {
+	if err := sendQuery(conn, sql); err != nil {
+		return nil, fmt.Errorf("send query: %w", err)
+	}
+
+	result := Result{}
+
+	for {
+		messageType, body, err := readMessage(conn)
+		if err != nil {
+			return nil, fmt.Errorf("read query response: %w", err)
+		}
+
+		switch messageType {
+		case 'T':
+			rowDescription, err := decodeRowDescription(body)
+			if err != nil {
+				fmt.Println()
+			}
+			result.Fields = rowDescription
+		case 'D':
+			dataRow, err := decodeDataRow(body)
+			if err != nil {
+
+			}
+			result.Rows = append(result.Rows, dataRow)
+		case 'C':
+			if len(body) == 0 || body[len(body)-1] != 0 {
+				return nil, fmt.Errorf("invalid command tag")
+			}
+		case 'Z':
+			return &result, nil
+		default:
+			fmt.Printf("Message: %c, body: % x\n", messageType, body)
+			text := string(body)
+			fmt.Println(text)
+		}
+
+	}
+
+}
+
 func sendQuery(conn net.Conn, sql string) error {
 	if strings.ContainsRune(sql, '\x00') {
 		return fmt.Errorf("query cannot contain null bytes")
