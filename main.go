@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"time"
@@ -99,6 +100,49 @@ func readMessage(conn net.Conn) (byte, []byte, error) {
 	}
 
 	return messageType, body, nil
+}
+
+func receiveUntilReady(conn net.Conn) error {
+	for {
+		messageType, body, err := readMessage(conn)
+		if err != nil {
+			return err
+		}
+
+		switch messageType {
+		case 'R':
+			if len(body) < 4 {
+				log.Println("Invalid authentication message length")
+				return fmt.Errorf("invalid authentication message")
+			}
+			authCode := binary.BigEndian.Uint32(body[:4])
+
+			if authCode != 0 {
+				return fmt.Errorf("unsupported authentication method: %d", authCode)
+			}
+
+			if len(body) != 4 {
+				return fmt.Errorf("invalid AuthenticationOk length")
+			}
+
+			fmt.Println("AuthenticationOK received")
+		case 'S':
+			fmt.Printf("ParameterStatus received: %s\n", string(body))
+		case 'K':
+			fmt.Println("Received BackendKeyData")
+		case 'Z':
+			fmt.Println("ReadyForQuery received")
+			return nil
+
+		case 'C':
+			fmt.Println("Query command: ", string(body))
+
+		default:
+			fmt.Printf("Message: %c, body: % x\n", messageType, body)
+			text := string(body)
+			fmt.Println(text)
+		}
+	}
 }
 
 func main() {}
