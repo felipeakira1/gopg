@@ -78,4 +78,27 @@ func connect(user, database string) (net.Conn, error) {
 	return conn, nil
 }
 
+func readMessage(conn net.Conn) (byte, []byte, error) {
+	header := make([]byte, 5)
+
+	if _, err := io.ReadFull(conn, header); err != nil {
+		return 0, nil, fmt.Errorf("read header: %w", err)
+	}
+
+	messageType := header[0]
+	length := binary.BigEndian.Uint32(header[1:5])
+
+	if length < 4 || length > 16*1024*1024 {
+		return 0, nil, fmt.Errorf("invalid message length: %d", length)
+	}
+
+	body := make([]byte, length-4)
+
+	if _, err := io.ReadFull(conn, body); err != nil {
+		return 0, nil, fmt.Errorf("read body: %w", err)
+	}
+
+	return messageType, body, nil
+}
+
 func main() {}
